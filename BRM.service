@@ -1,0 +1,283 @@
+#!/bin/env bash 
+ 
+#@author Juan Carlos Morla Reyes
+#@red social linkedin www.linkedin.com/in/juan-carlos-morla-reyes-6410a91b3
+#@description servicio manager de RAID BACKUP MORLA  
+#version 1.3
+
+etcRAIDBACKUP=/etc/RAID-BACKUP
+logRAIDBACKUP=/var/log/RAID-BACKUP
+HOME2=/home/jcarlos/BRM
+ruta_conf=${etcRAIDBACKUP}/BRM.conf
+DATE1=$(date +%u)  
+DATE=$(date +%d-%m-%Y-%I-%M-%S)
+lockfile="/var/lock/BRM.lock"
+
+
+BI_1_2(){
+
+	sleep 60
+	etcRAIDBACKUP=/etc/RAID-BACKUP
+	logRAIDBACKUP=/var/log/RAID-BACKUP
+	ruta_conf=${etcRAIDBACKUP}/BRM.conf
+	HOME2=/home/jcarlos/script_sh_py/Proyecto-backup-raid_BRM/vers-1.2
+	lockfile="/var/lock/backup-raidINCREMENTAL.lock"
+	#dia,mes,año,hora,minuto,segundo
+	DATE=$(date +%d-%m-%Y-%H-%M-%S)
+
+
+	if [[ ! -e $lockfile ]];then
+
+	  touch $lockfile 2>/dev/null
+
+	  MEMBER=$(cat $ruta_conf |
+	    grep MEMBER |
+	    cut -d"=" -f 2)
+
+	  BACKUP_DIR=$(cat $ruta_conf |
+	    grep BACKUP_DIR |
+	    cut -d"=" -f 2)
+
+	  rutaBACKUP=$(echo $BACKUP_DIR |
+	    sed "1s/[/]/-/g")
+
+	  BACKUP_DES="$(cat /etc/RAID-BACKUP/Dir-backupRaid.conf)"
+
+	  SNAPSHOT="$(cat $etcRAIDBACKUP/RUTAsnap.tpm)"
+
+	  tar -czvf $BACKUP_DES/$DATE.$MEMBER$rutaBACKUP-INCREMENTAL.tar.gz -g $SNAPSHOT $BACKUP_DIR &&\
+	    sleep 5s &&\
+	    
+	    
+	    if [[ -e $BACKUP_DES/$DATE.$MEMBER$rutaBACKUP-INCREMENTAL.tar.gz ]];then
+
+	     # xmessage -geometry 1024x100 -timeout 20 "BackupINCREMENRTAL terminado...[ $(du -sh ${BACKUP_DES}/${DATE}.${MEMBER}${rutaBACKUP}-INCREMENTAL.tar.gz) ]" "$(date +FECHA=%D_HORA=%H-%M-%S)" &&\
+	      sleep 4s
+	    else
+	      
+	      exit 1 ;echo $?[faile $BACKUP_DES/$DATE.$MEMBER$rutaBACKUP-INCREMENTAL.tar.gz ] 1>$logRAIDBACKUP/xmessager.log
+	    fi   
+
+	  rm $lockfile && sleep 5s 
+
+	else
+	  
+	  rm $lockfile;exit 1
+
+	fi
+	
+
+}
+
+
+BF_1_2(){
+
+	sleep 60
+	#dia,mes,año,hora,minuto,segundo
+	DATE=$(date +%d-%m-%Y-%H-%M-%S)
+
+	MEMBER=$(cat $ruta_conf|\
+	  grep MEMBER|\
+	    cut -d"=" -f 2)
+	 		
+	BACKUP_DIR=$(cat $ruta_conf|\
+	  grep BACKUP_DIR|\
+	    cut -d"=" -f 2)
+
+	BACKUP_DES=$(cat $ruta_conf|\
+	  grep RAID_DEFAULT|\
+	    cut -d"=" -f 2|\
+	      xargs -i grep ^"{}" $ruta_conf| cut -c 4-)  
+	 
+	rutaBACKUP=$(echo $BACKUP_DIR|\
+	  sed "1s/[/]/-/g")  
+	    
+
+
+	BF_backup(){
+
+		touch $lockfile 2>/dev/null 
+
+		cd $BACKUP_DES/ &&\
+			mkdir -p "$MEMBER$rutaBACKUP.$DATE" &&\
+				cd "$MEMBER$rutaBACKUP.$DATE"
+		BACKUP_DES=$(pwd)
+				
+		touch $BACKUP_DES/${DATE}.Incremental-snapshot.snat
+		BACKUP_DES=$(pwd)
+		
+		echo "$BACKUP_DES" 1> $etcRAIDBACKUP/Dir-backupRaid.conf
+		
+		echo "$BACKUP_DES/$DATE.Incremental-snapshot.snat" 1> $etcRAIDBACKUP/RUTAsnap.tpm
+		
+		SNAPSHOT="$(cat $etcRAIDBACKUP/RUTAsnap.tpm)"
+
+		tar -cpzvf $BACKUP_DES/$DATE.$MEMBER$rutaBACKUP.FULL.tar.gz -g $SNAPSHOT $BACKUP_DIR &&\
+			sleep 5s &&\
+		   	#	xmessage -geometry 1024x100 -timeout 20 "BackupFull terminado... $BACKUP_DIR:[$(du -sh $BACKUP_DES/$DATE.$MEMBER$rutaBACKUP.FULL.tar.gz)]" "$(date +FECHA=%D_HORA=%I-%M-%S)"		
+		
+
+		rm $lockfile 
+		sleep 5s
+		
+	}
+
+	if [[ ! -e $lockfile ]]; then
+		
+		BF_backup
+
+	else 
+		rm $lockfile
+		  
+
+	fi
+
+}
+
+
+HRCONF=$(cat $ruta_conf| grep HR| sed "s:['',HR,=]::g")
+
+
+VAR_BRM_CONF_BF(){
+
+
+	BF=$(cat $ruta_conf |\
+		grep -i "BF"|\
+			sed "s/[BF]//g;s/[,]/\n/g;s/[=,'']//g")
+
+	echo $BF | grep -o $DATE1|wc -l  		 
+}
+
+
+VAR_BRM_CONF_BI(){
+
+
+	BI=$(cat $ruta_conf |\
+		grep -i "BI"|\
+			sed "s/[BI]//g;s/[,]/\n/g;s/[=,'']//g")
+
+	echo $BI | grep -o $DATE1|wc -l 		 
+
+} 
+
+
+RAID=$(cat $ruta_conf|\
+	grep RAID_DEFAULT|\
+		cut -d"=" -f 2|\
+			xargs -i grep ^"{}" $ruta_conf| cut -c 4-)	
+if [[ -z $RAID ]];then exit 1 ;fi
+
+
+
+RAID_MOUNT(){
+
+	MOUNT=$(df | grep $RAID |wc -l)
+
+	[[ $MOUNT = 1 ]] ||\
+	CONTAD=0
+
+	for A in 1 2 3  ;do
+	
+		while [[ $CONTAD -lt 3 ]]; do
+		
+			if [[ $MOUNT = 1 ]]; then  
+			
+				CONTAD=3
+ 
+			else 
+		
+				#xmessage -timeout 15 "RAID NO MONTADA!! $DATE" 
+				CONF=0
+				CONTAD=$(( $CONTAD + 1 ))
+				mount -va && sleep 1
+				MOUNT=$(df | grep $RAID |wc -l) 
+
+			fi
+
+		done	
+	
+	done 
+}
+		
+
+CICLOsTECR=$(cat $ruta_conf|\
+	grep CICLOsTECR|\
+		cut -d"=" -f 2)
+		
+#CICLOS_Tiempo_de_espera_comprobacion_raid_MODIFICADO
+let CICLOsTECRM=$CICLOsTECR-1	
+let CICLOsTECRM1=$CICLOsTECRM-1		
+
+#echo $CICLOsTECRM $CICLOsTECRM1 $CICLOsTECR
+COMP_bf_bi(){
+
+	VAR_BRM_CONF_BI1=$(VAR_BRM_CONF_BI)
+	VAR_BRM_CONF_BF1=$(VAR_BRM_CONF_BF)	
+
+
+	while [[ $CICLOsTECRM -ge $CONF ]]
+	do 
+		sleep 5
+		HRPC=$(date "+%H-%M")
+		
+					 
+		if [[ $VAR_BRM_CONF_BI1 = 1 ]]; then
+			
+			if [[ $HRPC = $HRCONF ]]; then
+					
+				RAID_MOUNT &&\
+					BI_1_2 &&\
+						sleep 120s
+			fi
+		fi	
+		
+		
+		if [[ $VAR_BRM_CONF_BF1 = 1 ]]; then
+			
+			if [[ $HRPC = $HRCONF ]]; then
+				
+				RAID_MOUNT &&\
+					BF_1_2 &&\
+						sleep 120s  
+			
+			fi 	
+		
+		fi
+
+		if [[ $CICLOsTECRM1 = $CONF ]]; then
+		 
+			RAID_MOUNT
+			CONF=0
+
+		fi
+
+		CONF="$(( $CONF + 1 ))" 	
+		
+	done 
+}
+
+stop_opcion(){
+
+	ps axu | grep "BRM.service" | awk '{ print $2}' | xargs -i kill -9 {} 	
+	exit 
+}
+
+case "$1" in
+
+    start)
+     	COMP_bf_bi
+     	;;
+
+    stop) 
+		stop_opcion
+		;;
+
+    restart|force-reload)
+   		echo "NO configuration" 
+   		;;
+    *)
+        N=/etc/init.d/$NAME
+        echo "Usage: $N {start|stop|restart|force-reload}" >&2
+      	 exit 0
+        ;;
+esac
